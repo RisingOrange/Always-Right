@@ -1,25 +1,12 @@
-(async () => {
-  if (browser.browserSettings.newTabPosition) {
-    const RIGHT = 'afterCurrent';
-    let pref = await browser.browserSettings.newTabPosition.get({});
-    if (pref.value != RIGHT) {
-      await browser.browserSettings.newTabPosition.set({
-        value: RIGHT
-      });
-    }
-  }
-  else {
-    oldSchool();
-  }
-})();
+TAB_MOVE_DELAY = 500;
 
-function oldSchool() {
+(async () => {
   // Reference to the active tab
   var activeTab = null;
 
   // Update cached ref to active tab
   function updateActiveTab() {
-    browser.tabs.query({currentWindow: true, active: true}).then(function(tabs) {
+    browser.tabs.query({ currentWindow: true, active: true }).then(function (tabs) {
       if (activeTab === null) {
         initEventHandlers();
       }
@@ -36,15 +23,20 @@ function oldSchool() {
   function initEventHandlers() {
     // Update reference to active tab any time there's a tab
     // activated event.
-    browser.tabs.onActivated.addListener(function(activeInfo) {
-      browser.tabs.get(activeInfo.tabId).then(function(tabInfo) {
+    browser.tabs.onActivated.addListener(function (activeInfo) {
+      browser.tabs.get(activeInfo.tabId).then(function (tabInfo) {
         activeTab = tabInfo;
       });
     });
 
     // Any time a new tab is created, set its index to the index
     // of the active tab, plus one.
-    browser.tabs.onCreated.addListener(makeRight);
+    function makeRightAfterDelay(newTab) {
+      setTimeout(function () {
+        makeRight(newTab);
+      }, TAB_MOVE_DELAY);
+    }
+    browser.tabs.onCreated.addListener(makeRightAfterDelay);
 
     // ODD. If instead of this, I get a fresh reference to the active tab
     // right before moving, it still has stale index!!
@@ -54,7 +46,12 @@ function oldSchool() {
 
   // Move the referenced tab to the immediate right of the active tab,
   // or to the immediate right of the last pinned tab.
-  function makeRight(newTab) {
+  async function makeRight(newTab_) {
+    newTab = await browser.tabs.get(newTab_.id);
+
+    console.log("newTab.index", newTab.index);
+    console.log("activeTab.index", activeTab.index);
+
     // Too soon after startup.
     if (!activeTab) {
       return;
@@ -62,6 +59,7 @@ function oldSchool() {
 
     // The new tab either dragged to new window or something went wrong.
     if (newTab.windowId != activeTab.windowId) {
+      console.log("newTab.windowId != activeTab.windowId");
       return;
     }
 
@@ -70,16 +68,16 @@ function oldSchool() {
     // Only bother moving if it wouldn't organically be placed immediately to the
     // right of the active tab.
     if (newTab.index == targetIndex) {
+      console.log("newTab.index == targetIndex");
       return;
     }
 
     // We need current window for a few things required for correct tab placement.
     // And apparently tab references go STALE. Dammit.
-    browser.windows.getCurrent({populate: true}).then(function(win) {
+    browser.windows.getCurrent({ populate: true }).then(function (win) {
 
       // Maybe is a restored tab, or another add-on, or something else is wonky.
-      if (newTab.index < win.tabs.length - 1
-          || newTab.index > win.tabs.length - 1) {
+      if (newTab.index > win.tabs.length - 1) {
         return;
       }
 
@@ -90,9 +88,9 @@ function oldSchool() {
       }
 
       // YOU GOT TO MOVE IT MOVE IT
-      browser.tabs.move(newTab.id, { index: targetIndex }).then(function(t) {
+      browser.tabs.move(newTab.id, { index: targetIndex }).then(function (t) {
         // woohoo.
-      }, function(e) {
+      }, function (e) {
         console.error('AlwaysRight: tab move fail', e);
       });
     });
@@ -107,4 +105,4 @@ function oldSchool() {
       }
     }
   }
-}
+})();
