@@ -1,6 +1,17 @@
 TAB_MOVE_DELAY = 500;
 
 (async () => {
+
+  if (browser.browserSettings.newTabPosition) {
+    const RIGHT = 'afterCurrent';
+    let pref = await browser.browserSettings.newTabPosition.get({});
+    if (pref.value != RIGHT) {
+      await browser.browserSettings.newTabPosition.set({
+        value: RIGHT
+      });
+    }
+  }
+
   // Reference to the active tab
   var activeTab = null;
 
@@ -54,6 +65,11 @@ TAB_MOVE_DELAY = 500;
 
     // Too soon after startup.
     if (!activeTab) {
+      return;
+    }
+
+    if (newTab.index == activeTab.index) {
+      console.log("newTab.index == activeTab.index");
       return;
     }
 
